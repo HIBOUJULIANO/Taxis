@@ -1,0 +1,142 @@
+# import numpy as np
+import pandas as panda
+import sys
+import os
+from IPython.core.display import display, HTML
+import numpy as np
+import pandas as panda
+import geopandas
+from geopandas import GeoDataFrame
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import seaborn as sns
+from datetime import datetime, date, time
+#import timedelta
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
+
+display(HTML("<h3>Comment calculer le prix d'une course d'un chauffeur de taxi 'indépendant' New-Yorkais ?</h3><br><h4>Travaux dirigés par Maxime Jumelle, BLENT AI.</h4>"))
+
+
+
+f = open("C:/uber/Architecture.txt", "r")
+print(f.read())
+
+#display(HTML("<h3>Inspection des données avant mise en place du modèle.</h3><br>"))
+
+#display(HTML("<h4>Lecture du fichier Trajets avec la méthode .read_csv('chemin_du_fichier_de_destination')</h4><br>"))
+#display(HTML("<p>Présentation de la structure d'un fichier avec la methode head()</p><br>"))
+
+
+data = panda.read_csv("C:/uber/journee_taxi.csv")
+#print(data.head())
+
+#display(HTML("<h4>Quelques indications avec la méthode groupby de Panda"))
+display(HTML("<h3>Habitudes des consommateurs par zones</h3>"))
+display(HTML("<p>Il a été nécessaire pour y parvenir d'utiliser la méthode Merge avec Python, Panda et Geopandas. "))
+display(HTML("<p>Nous avons fusionné la carte et les distances. "))
+data['count']=1
+#display(HTML("<p>Présentation du fichier avec zone de Pickup, zone de Drop Off, prix, horaire de pickup</p>"))
+#print(data.loc[(data['PULocationID']>0) & (data['DOLocationID']>0), ['PULocationID','DOLocationID','fare_amount','tpep_pickup_datetime']])
+
+
+display(HTML("<p>Les zones de Manhattan, principales zones de Pickup en ordre décroissant sur la journée du 10.01.2018 9h00 - 19h00"))
+resultats_habitudes = data[['PULocationID','count']]
+#resultats_habitudes[(resultats_habitudes['PULocationID','DOLocationID','fare_amount','tpep_pickup_datetime'])]
+resultats_habitudes[(resultats_habitudes['PULocationID']>0)]
+#print(resultats_habitudes.groupby(by='PULocationID').sum())
+resultats2 = resultats_habitudes.groupby(by='PULocationID').sum()
+#print(resultats2.sort_values(by=['count'],ascending=False))
+
+#display(HTML("<p>Il convient d'identifier les zones dans l'espace. Pour cela nous mergeons les deux fichiers sur la colonne ayant un sens commun"))
+#display(HTML("<p>La structure du fichier indique location ID comme colonne commune entre les deux fichiers qui correspond à la zone de pick-up"))
+zones = geopandas.read_file(
+    os.path.expanduser("C:/uber/taxi_zones.shp")
+)
+zones_gps = zones.to_crs("EPSG:4326")
+#print(zones_gps.head())
+#print(resultats_habitudes.sort_values(by=['PULocationID']))
+
+data_zones = zones_gps.merge(resultats2.astype(int), how ='left', left_on='LocationID', right_on='PULocationID')
+#data_zones_simp =data_zones[['LocationID','zone','count']]
+#print(data_zones.head())
+print(data_zones.sort_values(by=['count'],ascending=False).head())
+
+#representation=data_zones_simp.sort_values(by=['count'],ascending=False)
+data_zones =GeoDataFrame(data_zones)
+data_zones.plot(column='count',legend=True, figsize=(15,17))
+
+
+
+#display(HTML("<h4>Exploitation du modèle en Data Streaming.</h4><br>"))
+
+
+display(HTML("<h3>Détermination des distances et temps entre chaque zone sur une amplitude de 10 heures - ajout de la colonne Time - </h3>"))
+
+data = panda.read_csv("C:/uber/journee_taxi.csv")
+#data['duree']=0
+data['tpep_dropoff_datetime']=panda.to_datetime(data['tpep_dropoff_datetime'],format="%Y-%m-%d %H:%M:%S")
+data['tpep_dropoff_datetime']=data['tpep_dropoff_datetime']
+data['tpep_pickup_datetime']=panda.to_datetime(data['tpep_pickup_datetime'],format="%Y-%m-%d %H:%M:%S")
+#data['duree']=panda.to_datetime(data['duree'],format="%Y-%m-%d %H:%M:%S")
+#print(data.head())
+def dureefct(A,B):
+     return(A-B)
+data['time']=dureefct(data['tpep_dropoff_datetime'], data['tpep_pickup_datetime'])
+
+print (data.loc[(data['VendorID']==1), ['PULocationID','DOLocationID','fare_amount','time','tpep_pickup_datetime']])
+
+#print("nous travaillons sur une base de 10 000 trajets sur une amplitude horaire de 9 heures")
+#print ('nombre de chauffeurs: à définir')
+print (data['trip_distance'].sum())
+somme_distance=data['trip_distance'].sum()
+print (data['time'].sum())
+
+
+#(nb_chauffeurs/somme_distance)+facteurx=140*1.5
+#nb_chauffeurs= somme_distance/140*1.5
+
+#display(HTML('<h3> Choix de la problématique à partir du projet : </h3>'))
+display(HTML("<h4> 1. Exemple d'un trajet ici celui reliant la Guardia-Zones 138 à Times Square-Zone 230 à l'aide de la méthode .loc : </h4>"))
+#display(HTML('<h4> 2. Identification de l"heure de pickup avec +3 heures d"écart pour le calcul du temps de trajet: </h4>'))
+print (data.loc[(data['PULocationID'] == 138) & (data['DOLocationID'] == 230) & (data['tpep_pickup_datetime'] >= "2018-01-10 09:53:10") & (data['tpep_pickup_datetime'] <= "2018-01-10 12:53:10"),['PULocationID', 'DOLocationID','tpep_pickup_datetime', 'time', ]])
+tempsdetrajet = data.loc[(data['PULocationID'] == 138) & (data['DOLocationID'] == 230) & (data['tpep_pickup_datetime'] >= "2018-01-10 09:53:10") & (data['tpep_pickup_datetime'] <= "2018-01-10 12:53:10"),['PULocationID', 'DOLocationID','tpep_pickup_datetime','trip_distance', 'time','fare_amount']]
+#print ("Paramètres du modèle : Zones de pickup, Zone de Drop Off, horaire de Pickup comparé aux horaires H+3 de Pickup")
+#print ("Le temps de trajets moyen pour relier la Guardia à Time Square entre l'heure de pickup et l'heure de pickup + 3 est de :")
+print("Temps de trajet moyen pour relier La Guardia à Time Square :")
+print(tempsdetrajet['time'].mean())
+print("Distance moyenne parcourue :")
+print(tempsdetrajet['trip_distance'].mean())
+print("Prix moyen payé en 2018 :")
+print(tempsdetrajet['fare_amount'].mean())
+print("le prix est d'envrion 4 euros par kilomètres pour cette distance sur cette heure de pickup (+/-3 heures)")
+
+display(HTML("<h4> Application du modèle sur l'ensemble de NYC et une amplitude de 10 heures </h4>"))
+print (data.loc[(data['PULocationID'] > 0) & (data['DOLocationID'] > 0) & (data['tpep_pickup_datetime'] >= "2018-01-10 09:00:00") & (data['tpep_pickup_datetime'] <= "2018-01-10 19:00:00"),['PULocationID', 'DOLocationID','tpep_pickup_datetime', 'time','trip_distance','fare_amount' ]])
+basemodele =data.loc[(data['PULocationID'] > 0) & (data['DOLocationID'] > 0) & (data['tpep_pickup_datetime'] >= "2018-01-10 09:00:00") & (data['tpep_pickup_datetime'] <= "2018-01-10 19:00:00"),['PULocationID', 'DOLocationID','tpep_pickup_datetime', 'time','trip_distance','fare_amount' ]]
+print("Total de kilomètres à parcourir sur NYC entre 9 heures et 19 heures selon trajets historiques :")
+print(basemodele['trip_distance'].sum())
+#print("nombre de chauffeurs sur une amplitude de 9 heures à 18 heures, estimée à 8000 ")
+#print ("rémunération souhaitée : 160$ coefficient prenant en compte la borne basse compris")
+#print("x la variable permetttant de corriger le prix au km de sorte qu'en fonction du nombre de chauffeur et de la distance, le revenu soit de 160$")
+
+SOMMEDISTANCEJOUR = basemodele['trip_distance'].sum()
+NBCHAUFFEURS = 8000
+X=0
+PRIXKM=3.70
+PRIXJOURNEE=180
+A=SOMMEDISTANCEJOUR * PRIXKM
+B=NBCHAUFFEURS * PRIXJOURNEE
+
+
+PRIXKM = (NBCHAUFFEURS*PRIXJOURNEE)/SOMMEDISTANCEJOUR
+print("Prix au km par application du modèle :")
+print (PRIXKM)
+
+print("Selon les données publiées, prix au kilomètres et coût de la prise en charge compris, le tarif proposé est compris en moyenne entre 3 et 4 euros")
+print("Ce tarif est cohérant, sur la base de 8000 chauffeurs opérant simultanément pour une distance totale d'environ 40 000 kilomètres")
+
+    
+
